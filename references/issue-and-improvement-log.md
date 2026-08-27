@@ -36,6 +36,12 @@ superseded_by:
 
 Repositories may localize labels and status values, but the type-to-label mapping must remain deterministic.
 
+## Active Log and Archives
+
+Keep the active log bounded to unresolved work, recent completions, and current release candidates. Move older completed records into period-based archives. Preserve identifiers and full record bodies; never copy one identifier into both active and archived files.
+
+Ordinary tasks search the active log first. Archives are opened only by explicit identifier, keyword, release trace, or historical decision need. Validators should check uniqueness and record integrity across both locations without requiring an agent to read every archive.
+
 ## Historical Integrity
 
 - Append records; do not erase completed history.
@@ -44,6 +50,7 @@ Repositories may localize labels and status values, but the type-to-label mappin
 - If a timestamp is unknown, write a historical-reconstruction marker instead of inventing a minute.
 - If evidence was not retained, say so and identify the present source of truth.
 - A completed record must include an end time and verification evidence.
+- Small wording, spacing, color, or decorative adjustments may be grouped into one stage record instead of creating one entry per edit.
 
 ## Release Candidates
 

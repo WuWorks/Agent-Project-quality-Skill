@@ -14,6 +14,9 @@
 - 支持历史追加、事实更正、替代关系和发布说明候选。
 - 使用 L1/L2/L3 分层验收，兼顾开发效率与质量。
 - 提供只读校验器，检查标题、ID、字段、证据和时间一致性。
+- 建立唯一轻量入口、读取/输出预算和线性开发路径。
+- 将活动日志与历史归档分离，避免日常任务加载完整历史。
+- 由实际风险决定 L1/L2/L3，Git 提交本身不触发全量验收。
 
 ## 目录结构
 
@@ -21,6 +24,7 @@
 project-quality-governance/
 ├─ SKILL.md
 ├─ README.md
+├─ CHANGELOG.md
 ├─ LICENSE
 ├─ agents/
 │  └─ openai.yaml
@@ -56,10 +60,13 @@ Skill 默认跟随目标项目的语言生成文档；其自身使用英文编�
 ```bash
 node scripts/validate-quality-docs.mjs \
   --spec path/to/technical-spec.md \
-  --log path/to/change-log.md
+  --log path/to/active-log.md \
+  --archives path/to/archive-1.md,path/to/archive-2.md \
+  --agents path/to/agent-entrypoint.md \
+  --workflow path/to/workflow.md
 ```
 
-通过 `--config path/to/config.json` 可以配置 ID 前缀、类型和内容标签、完成状态、必填字段、发布文案要求，以及编号章节和允许的非编号 H2。
+通过 `--config path/to/config.json` 可以配置 ID 前缀、类型和内容标签、完成状态、必填字段、发布文案要求、活动记录上限、入口文件预算，以及编号章节和允许的非编号 H2。
 
 运行校验器测试：
 
@@ -80,3 +87,7 @@ Skill 不要求上传项目文件，不读取未授权的私有研究或密钥�
 ## License
 
 Released under the [Apache License 2.0](LICENSE).
+
+## 更新日志
+
+查看 [CHANGELOG.md](CHANGELOG.md)。

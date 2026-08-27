@@ -20,6 +20,11 @@ export const defaultConfig = {
   releaseCopyHeading: 'Release note',
   numberedSections: [],
   allowedUnnumberedH2: [],
+  maxActiveRecords: null,
+  maxAgentLines: null,
+  maxAgentBytes: null,
+  requiredBudgetPhrases: [],
+  bannedCostPhrases: [],
 }
 
 function parseArgs(argv) {
@@ -66,7 +71,7 @@ function exactTimestamp(value) {
   return match ? `${match[1]} ${match[2]}` : ''
 }
 
-export function validateQualityDocs({ specText, logText, config = {} }) {
+export function validateQualityDocs({ specText, logText, archiveTexts = [], agentsText = '', workflowText = '', config = {} }) {
   const settings = { ...defaultConfig, ...config }
   const diagnostics = []
   const specMeta = parseFrontmatter(specText)
@@ -98,18 +103,22 @@ export function validateQualityDocs({ specText, logText, config = {} }) {
   const summaryRows = summarySection ? [...summarySection[1].matchAll(new RegExp(`^\\|\\s*(${idPattern})\\s*\\|\\s*([^|]+)\\|`, 'gm'))] : []
   const summaryIds = summaryRows.map((row) => row[1])
   if (new Set(summaryIds).size !== summaryIds.length) diagnostics.push('Status Index contains duplicate identifiers.')
+  if (settings.maxActiveRecords !== null && summaryIds.length > settings.maxActiveRecords) diagnostics.push(`Active log exceeds the configured limit of ${settings.maxActiveRecords} records.`)
 
-  const detailPattern = new RegExp(`^## (${idPattern}):[^\\r\\n]+\\r?\\n([\\s\\S]*?)(?=^---\\s*$|^## Templates)`, 'gm')
+  const detailPattern = new RegExp(`^## (${idPattern}):[^\\r\\n]+\\r?\\n([\\s\\S]*?)(?=^---\\s*$|^## Templates|(?![\\s\\S]))`, 'gm')
   const details = [...logText.matchAll(detailPattern)]
   const detailIds = details.map((record) => record[1])
-  if (new Set(detailIds).size !== detailIds.length) diagnostics.push('Detailed records contain duplicate identifiers.')
+  const archiveDetails = archiveTexts.flatMap((text) => [...text.matchAll(detailPattern)])
+  const archiveIds = archiveDetails.map((record) => record[1])
+  const allIds = [...detailIds, ...archiveIds]
+  if (new Set(allIds).size !== allIds.length) diagnostics.push('Active and archived records contain duplicate identifiers.')
   const missingDetails = summaryIds.filter((id) => !detailIds.includes(id))
   const missingSummary = detailIds.filter((id) => !summaryIds.includes(id))
   if (missingDetails.length) diagnostics.push(`Index identifiers missing details: ${missingDetails.join(', ')}.`)
   if (missingSummary.length) diagnostics.push(`Detailed identifiers missing from index: ${missingSummary.join(', ')}.`)
 
   let newestCompletion = ''
-  for (const record of details) {
+  for (const record of [...details, ...archiveDetails]) {
     const id = record[1]
     const body = record[2]
     const fields = parseYamlBlock(body)
@@ -124,7 +133,7 @@ export function validateQualityDocs({ specText, logText, config = {} }) {
     const expectedTag = isDefect ? settings.defectTag : settings.improvementTag
     if (fields.type !== expectedType) diagnostics.push(`${id} type must be ${expectedType}.`)
     if (fields.content_tag !== expectedTag) diagnostics.push(`${id} content_tag must be ${expectedTag}.`)
-    const indexRow = summaryRows.find((row) => row[1] === id)
+    const indexRow = detailIds.includes(id) ? summaryRows.find((row) => row[1] === id) : undefined
     if (indexRow && indexRow[2].trim() !== expectedTag) diagnostics.push(`${id} index label does not match its record type.`)
     const completed = (isDefect ? settings.fixedStatuses : settings.completedStatuses).includes(fields.status)
     const endField = isDefect ? 'fixed_at' : 'completed_at'
@@ -132,11 +141,20 @@ export function validateQualityDocs({ specText, logText, config = {} }) {
     if (completed && !body.includes(`**${settings.evidenceHeading}`)) diagnostics.push(`${id} is complete but verification evidence is missing.`)
     if (settings.requireReleaseCopy && fields.release_note_ready === settings.releaseReadyValue && !body.includes(`**${settings.releaseCopyHeading}`)) diagnostics.push(`${id} is release-ready but release copy is missing.`)
     const timestamp = exactTimestamp(fields[endField])
-    if (timestamp > newestCompletion) newestCompletion = timestamp
+    if (detailIds.includes(id) && timestamp > newestCompletion) newestCompletion = timestamp
   }
 
   const updated = exactTimestamp(logMeta?.last_updated)
   if (newestCompletion && (!updated || updated < newestCompletion)) diagnostics.push(`Log last_updated is older than the newest completed record (${newestCompletion}).`)
+
+  if (agentsText) {
+    const lineCount = agentsText.split(/\r?\n/).length
+    if (settings.maxAgentLines !== null && lineCount > settings.maxAgentLines) diagnostics.push(`Agent entrypoint exceeds ${settings.maxAgentLines} lines.`)
+    if (settings.maxAgentBytes !== null && Buffer.byteLength(agentsText, 'utf8') > settings.maxAgentBytes) diagnostics.push(`Agent entrypoint exceeds ${settings.maxAgentBytes} bytes.`)
+    for (const phrase of settings.requiredBudgetPhrases) if (!agentsText.includes(phrase)) diagnostics.push(`Agent entrypoint is missing required budget phrase: ${phrase}`)
+  }
+  const governanceText = [agentsText, specText, workflowText].filter(Boolean).join('\n')
+  for (const phrase of settings.bannedCostPhrases) if (governanceText.includes(phrase)) diagnostics.push(`Governance documents contain banned cost rule: ${phrase}`)
   return diagnostics
 }
 
@@ -149,12 +167,15 @@ export function runCli(argv = process.argv.slice(2)) {
     return 2
   }
   if (!args.spec || !args.log) {
-    console.error('Usage: node validate-quality-docs.mjs --spec <file> --log <file> [--config <json>]')
+    console.error('Usage: node validate-quality-docs.mjs --spec <file> --log <file> [--archives <file1,file2>] [--agents <file>] [--workflow <file>] [--config <json>]')
     return 2
   }
   try {
     const config = args.config ? JSON.parse(fs.readFileSync(args.config, 'utf8')) : {}
-    const diagnostics = validateQualityDocs({ specText: fs.readFileSync(args.spec, 'utf8'), logText: fs.readFileSync(args.log, 'utf8'), config })
+    const archiveTexts = args.archives ? args.archives.split(',').filter(Boolean).map((file) => fs.readFileSync(file, 'utf8')) : []
+    const agentsText = args.agents ? fs.readFileSync(args.agents, 'utf8') : ''
+    const workflowText = args.workflow ? fs.readFileSync(args.workflow, 'utf8') : ''
+    const diagnostics = validateQualityDocs({ specText: fs.readFileSync(args.spec, 'utf8'), logText: fs.readFileSync(args.log, 'utf8'), archiveTexts, agentsText, workflowText, config })
     if (diagnostics.length) {
       console.error('QUALITY DOCS CHECK FAILED')
       diagnostics.forEach((item) => console.error(`- ${item}`))

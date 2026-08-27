@@ -75,8 +75,30 @@ affected_area: documentation
 ## Templates
 `
 
+const validArchive = `---
+document_type: quality-log-archive
+period: 2099-Q1
+---
+# Quality Log Archive
+## IMPROVEMENT-GAMMA-001: Archived improvement
+
+\`\`\`yaml
+type: improvement
+content_tag: Improvement
+status: completed
+severity: low
+proposed_by: reviewer
+started_at: 2099-01-01 08:00 +00:00
+completed_at: 2099-01-01 09:00 +00:00
+release_note_ready: no
+affected_area: documentation
+\`\`\`
+
+**Verification evidence:** Archived validation passed.
+`
+
 test('accepts a valid specification and log', () => {
-  assert.deepEqual(validateQualityDocs({ specText: validSpec, logText: validLog, config }), [])
+  assert.deepEqual(validateQualityDocs({ specText: validSpec, logText: validLog, archiveTexts: [validArchive], config }), [])
 })
 
 test('detects a heading jump', () => {
@@ -114,6 +136,31 @@ test('detects a stale log update time', () => {
   const changed = validLog.replace('last_updated: 2099-01-02 10:00 +00:00', 'last_updated: 2099-01-01 08:00 +00:00')
   const result = validateQualityDocs({ specText: validSpec, logText: changed, config })
   assert.ok(result.some((item) => item.includes('last_updated is older')))
+})
+
+test('detects identifiers duplicated between active and archived logs', () => {
+  const duplicatedArchive = validArchive.replaceAll('IMPROVEMENT-GAMMA-001', 'IMPROVEMENT-BETA-001')
+  const result = validateQualityDocs({ specText: validSpec, logText: validLog, archiveTexts: [duplicatedArchive], config })
+  assert.ok(result.some((item) => item.includes('duplicate identifiers')))
+})
+
+test('enforces configured active-log and context budgets', () => {
+  const result = validateQualityDocs({
+    specText: validSpec,
+    logText: validLog,
+    agentsText: 'default entrypoint',
+    workflowText: 'Every commit requires full validation.',
+    config: {
+      ...config,
+      maxActiveRecords: 1,
+      maxAgentLines: 1,
+      requiredBudgetPhrases: ['targeted reading'],
+      bannedCostPhrases: ['Every commit requires full validation.'],
+    },
+  })
+  assert.ok(result.some((item) => item.includes('Active log exceeds')))
+  assert.ok(result.some((item) => item.includes('missing required budget phrase')))
+  assert.ok(result.some((item) => item.includes('banned cost rule')))
 })
 
 test('runs through the explicit-path CLI in an isolated directory', () => {

@@ -10,6 +10,14 @@ Place a compact, mandatory rule block immediately after the title. Cover only co
 
 Follow it with a clickable section index, a task-to-section routing table, and a note that historical or experimental material is read only when current facts cannot explain a decision. This enables narrow context loading without weakening safety.
 
+Use one lightweight contributor entrypoint as the default read. The authoritative specification remains queryable reference material; ordinary tasks should not load it in full. Route by heading, symbol, identifier, or bounded line range.
+
+## Context Budget Policy
+
+Define repository-specific limits for initial file count, default line range, command output, visual checks, and handoff length. Keep the limits in the lightweight entrypoint and validate them mechanically when the repository chooses fixed values.
+
+Budgets reduce observation noise; they do not override safety review or prevent reading additional evidence when a task genuinely requires it.
+
 ## Stable Hierarchy
 
 - Use exactly one H1 for the document title.
