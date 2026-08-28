@@ -1,3 +1,4 @@
+🌐 语言：**中文** | [English](README‑EN.md)
 # Project Quality Governance 🧭
 
 > 一套面向 Codex 与工程 Agent 的开源质量治理 Skill，让技术规范、Bug/优化日志与验证流程保持清晰、可检索、可追踪。
