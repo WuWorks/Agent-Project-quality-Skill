@@ -1,3 +1,4 @@
+🌐 Language：**English** | [中文](https://github.com/WuWorks/Agent‑Project‑quality‑Skill/blob/main/README.md)
 # Project Quality Governance 🧭
 
 > An open-source quality governance tool for Codex and engineering agents, ensuring that technical specifications, bug/optimisation logs and verification processes remain clear, searchable and traceable.
